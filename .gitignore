@@ -1,0 +1,31 @@
+# Personal data — never commit these
+data/transactions.db
+data/raw/
+data/processed/
+data/learned_rules_backup.json
+
+# Exports & generated files
+exports/
+charts/
+logs/
+
+# PyInstaller build artifacts
+build/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# Editors
+.vscode/
+.idea/
+*.swp
