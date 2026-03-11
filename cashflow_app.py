@@ -2457,7 +2457,7 @@ class CashflowApp:
             return
 
         # Create edit dialog
-        EditTransactionDialog(self.root, self.db, txn, self.refresh_transactions)
+        EditTransactionDialog(self.root, self.db, txn, self.refresh_transactions, self.learned_rules, self.refresh_rules)
 
     def delete_transaction(self):
         """Delete selected transaction"""
@@ -3157,10 +3157,12 @@ class AddTransactionDialog:
 class EditTransactionDialog:
     """Dialog for editing a transaction"""
 
-    def __init__(self, parent, db, txn, callback):
+    def __init__(self, parent, db, txn, callback, learned_rules=None, rules_callback=None):
         self.db = db
         self.txn = txn
         self.callback = callback
+        self.learned_rules = learned_rules
+        self.rules_callback = rules_callback
 
         # Create dialog
         self.dialog = tk.Toplevel(parent)
@@ -3297,11 +3299,8 @@ class EditTransactionDialog:
         conn.commit()
 
         # If category changed, offer to learn rule and apply to all
-        if category_changed and new_category != 'Uncategorized':
-            # Import here to avoid circular dependency
-            from src.learned_rules import LearnedRules
-
-            learned_rules = LearnedRules()
+        if category_changed and new_category != 'Uncategorized' and self.learned_rules:
+            learned_rules = self.learned_rules
 
             # Suggest a keyword
             suggested_keyword = learned_rules.suggest_rule(self.txn['description'], new_category)
@@ -3357,6 +3356,8 @@ class EditTransactionDialog:
 
         self.dialog.destroy()
         self.callback()
+        if self.rules_callback:
+            self.rules_callback()
 
 
 class EditRuleDialog:
