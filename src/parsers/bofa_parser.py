@@ -23,10 +23,11 @@ class BofAParser(BaseParser):
     def get_account_name(self, file_path: Path) -> str:
         import re
         stem = file_path.stem
-        match = re.search(r'(\d{4})', stem)
-        if match:
-            return f"Bank of America *{match.group(1)}"
-        return "Bank of America"
+        # Take the LAST 4-digit group so "February2025_0424" → "0424" not "2025"
+        matches = re.findall(r'\d{4}', stem)
+        if matches:
+            return f"BofA *{matches[-1]}"
+        return "BofA"
 
     def detect(self, file_path: Path) -> bool:
         """Detect if this is a BofA CSV"""
