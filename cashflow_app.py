@@ -1725,7 +1725,7 @@ class CashflowApp:
 
     def merge_categories(self):
         """Open dialog to merge categories"""
-        MergeCategoriesDialog(self.root, self.db, self.refresh_transactions, self.refresh_categories)
+        MergeCategoriesDialog(self.root, self.db, self.refresh_transactions, self.refresh_categories, self.category_mapper)
 
     def fix_account_names(self):
         """Rename existing file-stem account names to proper bank account names."""
@@ -2534,10 +2534,8 @@ class CashflowApp:
             messagebox.showwarning("Not Found", f"No rules found for '{category}'")
             return
 
-        # Create callback that reloads rules in main app
+        # Create callback that refreshes the Rules tab (learned_rules already updated in-place)
         def on_save():
-            # Reload learned rules in main app
-            self.learned_rules = LearnedRules()
             self.refresh_rules()
 
         # Open edit dialog
@@ -2573,35 +2571,18 @@ class CashflowApp:
         category = self.rules_tree.item(item)['text']
 
         if messagebox.askyesno("Confirm Delete", f"Delete all rules for '{category}'?"):
-            # Load the rules file directly
-            import json
-            from pathlib import Path
+            rules = self.learned_rules.get_all_rules()
+            if category in rules:
+                keyword_count = len(rules[category])
+                # Delete each keyword via the shared instance (handles save to correct path)
+                for keyword in list(rules[category]):
+                    self.learned_rules.delete_rule(category, keyword)
 
-            rules_file = Path("data/learned_rules.json")
-
-            if rules_file.exists():
-                with open(rules_file, 'r') as f:
-                    rules = json.load(f)
-
-                # Delete the category
-                if category in rules:
-                    keyword_count = len(rules[category])
-                    del rules[category]
-
-                    # Save back to file
-                    with open(rules_file, 'w') as f:
-                        json.dump(rules, f, indent=2)
-
-                    # Reload in memory
-                    self.learned_rules = LearnedRules()
-
-                    self.refresh_rules()
-                    self.status_var.set(f"Deleted {keyword_count} rule(s) for: {category}")
-                    messagebox.showinfo("Deleted", f"Deleted {keyword_count} keyword(s) for '{category}'")
-                else:
-                    messagebox.showwarning("Not Found", f"No rules found for '{category}'")
+                self.refresh_rules()
+                self.status_var.set(f"Deleted {keyword_count} rule(s) for: {category}")
+                messagebox.showinfo("Deleted", f"Deleted {keyword_count} keyword(s) for '{category}'")
             else:
-                messagebox.showwarning("Not Found", "No rules file found")
+                messagebox.showwarning("Not Found", f"No rules found for '{category}'")
 
     def show_category_transactions(self, event):
         """Show all transactions for the selected category"""
@@ -3530,10 +3511,11 @@ class EditRuleDialog:
 class MergeCategoriesDialog:
     """Dialog for merging categories"""
 
-    def __init__(self, parent, db, callback1, callback2):
+    def __init__(self, parent, db, callback1, callback2, category_mapper=None):
         self.db = db
         self.callback1 = callback1
         self.callback2 = callback2
+        self.category_mapper = category_mapper
 
         # Create dialog
         self.dialog = tk.Toplevel(parent)
@@ -3669,9 +3651,9 @@ class MergeCategoriesDialog:
         conn = self.db.get_connection()
         cursor = conn.cursor()
 
-        # Save mappings for future imports
+        # Save mappings for future imports (use shared instance so correct path is used)
         from src.category_mapper import CategoryMapper
-        mapper = CategoryMapper()
+        mapper = self.category_mapper if self.category_mapper else CategoryMapper()
 
         for cat in source_cats:
             if cat != target:  # Don't update if already the target
