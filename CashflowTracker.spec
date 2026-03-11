@@ -19,6 +19,7 @@ a = Analysis(
         ('data/category_mappings.json', 'data'),
     ],
     hiddenimports=[
+        'src.parsers.monarch_parser',
         'src.parsers.chase_credit_parser',
         'src.parsers.chase_checking_parser',
         'src.parsers.amex_parser',

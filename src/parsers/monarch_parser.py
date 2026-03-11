@@ -159,7 +159,8 @@ class MonarchParser(BaseParser):
         try:
             if file_path.suffix.lower() != '.csv':
                 return False
-            df = pd.read_csv(file_path, nrows=0)
+            # Use utf-8-sig to handle BOM that Monarch sometimes adds
+            df = pd.read_csv(file_path, nrows=0, encoding='utf-8-sig')
             columns = df.columns.tolist()
             return all(col in columns for col in self.EXPECTED_COLUMNS)
         except Exception:
@@ -167,7 +168,7 @@ class MonarchParser(BaseParser):
 
     def parse(self, file_path: Path, account_name: str) -> List[Transaction]:
         """Parse a Monarch Money CSV export into transactions."""
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, encoding='utf-8-sig')
         transactions = []
 
         for _, row in df.iterrows():

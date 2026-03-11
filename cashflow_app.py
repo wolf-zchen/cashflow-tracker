@@ -871,12 +871,11 @@ class CashflowApp:
         txn_frame = ttk.Frame(self.notebook)
         self.notebook.add(txn_frame, text="💰 Transactions")
 
-        # Top controls
-        control_frame = ttk.Frame(txn_frame)
-        control_frame.pack(fill='x', padx=5, pady=5)
+        # Top controls — row 1: date range
+        row1 = ttk.Frame(txn_frame)
+        row1.pack(fill='x', padx=5, pady=(5, 2))
 
-        # Date range filters
-        date_frame = ttk.LabelFrame(control_frame, text="Date Range", padding=5)
+        date_frame = ttk.LabelFrame(row1, text="Date Range", padding=5)
         date_frame.pack(side='left', padx=5)
 
         ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
@@ -887,43 +886,46 @@ class CashflowApp:
         self.date_to_var = tk.StringVar()
         ttk.Entry(date_frame, textvariable=self.date_to_var, width=12).pack(side='left', padx=2)
 
-        # Quick date buttons
         quick_frame = ttk.Frame(date_frame)
         quick_frame.pack(side='left', padx=5)
-
         ttk.Button(quick_frame, text="This Month", command=self.set_this_month, width=10).pack(side='left', padx=2)
         ttk.Button(quick_frame, text="Last Month", command=self.set_last_month, width=10).pack(side='left', padx=2)
-        ttk.Button(quick_frame, text="This Year", command=self.set_this_year, width=10).pack(side='left', padx=2)
-        ttk.Button(quick_frame, text="All Time", command=self.set_all_time, width=10).pack(side='left', padx=2)
+        ttk.Button(quick_frame, text="This Year",  command=self.set_this_year,  width=10).pack(side='left', padx=2)
+        ttk.Button(quick_frame, text="All Time",   command=self.set_all_time,   width=10).pack(side='left', padx=2)
 
-        # Search and other controls
-        search_frame = ttk.Frame(control_frame)
-        search_frame.pack(side='left', padx=5, fill='x', expand=True)
+        # Row 2: account filter + search + show limit
+        row2 = ttk.Frame(txn_frame)
+        row2.pack(fill='x', padx=5, pady=(0, 5))
 
-        ttk.Label(search_frame, text="Filter:").pack(side='left', padx=5)
+        ttk.Label(row2, text="Account:").pack(side='left', padx=5)
+        self.account_filter_var = tk.StringVar(value="All Accounts")
+        self.account_combo = ttk.Combobox(
+            row2,
+            textvariable=self.account_filter_var,
+            values=["All Accounts"],
+            width=24,
+            state='readonly'
+        )
+        self.account_combo.pack(side='left', padx=5)
+        self.account_combo.bind('<<ComboboxSelected>>', lambda e: self.refresh_transactions())
 
+        ttk.Label(row2, text="Filter:").pack(side='left', padx=5)
         self.filter_var = tk.StringVar()
-        filter_entry = ttk.Entry(search_frame, textvariable=self.filter_var, width=30)
+        filter_entry = ttk.Entry(row2, textvariable=self.filter_var, width=28)
         filter_entry.pack(side='left', padx=5)
         filter_entry.bind('<KeyRelease>', lambda e: self.refresh_transactions())
 
-        ttk.Button(
-            search_frame,
-            text="Refresh",
-            command=self.refresh_transactions
-        ).pack(side='left', padx=5)
+        ttk.Button(row2, text="Refresh", command=self.refresh_transactions).pack(side='left', padx=5)
 
-        ttk.Label(search_frame, text="Show:").pack(side='left', padx=5)
+        ttk.Label(row2, text="Show:").pack(side='left', padx=5)
         self.limit_var = tk.StringVar(value="All")
         limit_combo = ttk.Combobox(
-            search_frame,
+            row2,
             textvariable=self.limit_var,
             values=["50", "100", "200", "500", "All"],
-            width=10
+            width=8
         )
         limit_combo.pack(side='left', padx=5)
-
-        # Auto-refresh when limit changes
         limit_combo.bind('<<ComboboxSelected>>', lambda e: self.refresh_transactions())
 
         # Transactions tree
@@ -2320,6 +2322,17 @@ class CashflowApp:
         limit = self.limit_var.get()
         date_from = self.date_from_var.get()
         date_to = self.date_to_var.get()
+        account_filter = self.account_filter_var.get()
+
+        # Refresh account dropdown with current DB accounts
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT account_name FROM transactions ORDER BY account_name")
+        accounts = ["All Accounts"] + [r['account_name'] for r in cursor.fetchall()]
+        self.account_combo['values'] = accounts
+        if account_filter not in accounts:
+            self.account_filter_var.set("All Accounts")
+            account_filter = "All Accounts"
 
         # Build query
         query = "SELECT id, date, description, amount, category, account_name, transaction_type FROM transactions WHERE 1=1"
@@ -2333,6 +2346,11 @@ class CashflowApp:
         if date_to:
             query += " AND date <= ?"
             params.append(date_to)
+
+        # Account filter
+        if account_filter and account_filter != "All Accounts":
+            query += " AND account_name = ?"
+            params.append(account_filter)
 
         # Text filter
         if filter_text:
@@ -2385,6 +2403,10 @@ class CashflowApp:
         if date_to:
             stats_query += " AND date <= ?"
             stats_params.append(date_to)
+
+        if account_filter and account_filter != "All Accounts":
+            stats_query += " AND account_name = ?"
+            stats_params.append(account_filter)
 
         if filter_text:
             stats_query += " AND (description LIKE ? OR category LIKE ?)"
