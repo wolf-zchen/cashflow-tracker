@@ -10,6 +10,7 @@ A desktop app for managing your personal finances with:
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
+from tkcalendar import DateEntry
 from pathlib import Path
 import sys
 from datetime import datetime
@@ -66,6 +67,34 @@ class CashflowApp:
 
         # Load initial data
         self.refresh_transactions()
+
+    def _date_picker(self, parent, string_var):
+        """Return a frame with a date Entry + calendar button bound to string_var."""
+        frame = ttk.Frame(parent)
+        ttk.Entry(frame, textvariable=string_var, width=11).pack(side='left')
+        ttk.Button(frame, text="📅", width=2,
+                   command=lambda: self._pick_date_into(string_var)).pack(side='left', padx=1)
+        return frame
+
+    def _pick_date_into(self, string_var):
+        """Open a calendar popup and write the chosen date into string_var."""
+        top = tk.Toplevel(self.root)
+        top.title("Pick a date")
+        top.resizable(False, False)
+        top.grab_set()
+        cal = DateEntry(top, date_pattern='yyyy-mm-dd', width=14,
+                        background='darkgreen', foreground='white', borderwidth=2)
+        try:
+            current = string_var.get()
+            if current:
+                cal.set_date(current)
+        except Exception:
+            pass
+        cal.pack(padx=10, pady=10)
+        def select():
+            string_var.set(cal.get_date().strftime('%Y-%m-%d'))
+            top.destroy()
+        ttk.Button(top, text="Select", command=select).pack(pady=(0, 10))
 
     def create_menu(self):
         """Create menu bar"""
@@ -243,10 +272,10 @@ class CashflowApp:
         ttk.Label(control_frame, text="Date Range:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
 
         self.dash_date_from_var = tk.StringVar()
-        ttk.Entry(control_frame, textvariable=self.dash_date_from_var, width=12).pack(side='left', padx=2)
+        self._date_picker(control_frame, self.dash_date_from_var).pack(side='left', padx=2)
         ttk.Label(control_frame, text="to").pack(side='left', padx=5)
         self.dash_date_to_var = tk.StringVar()
-        ttk.Entry(control_frame, textvariable=self.dash_date_to_var, width=12).pack(side='left', padx=2)
+        self._date_picker(control_frame, self.dash_date_to_var).pack(side='left', padx=2)
 
         ttk.Button(control_frame, text="This Month", command=self.set_dash_this_month, width=10).pack(side='left',
                                                                                                       padx=2)
@@ -880,11 +909,11 @@ class CashflowApp:
 
         ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
         self.date_from_var = tk.StringVar()
-        ttk.Entry(date_frame, textvariable=self.date_from_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.date_from_var).pack(side='left', padx=2)
 
         ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
         self.date_to_var = tk.StringVar()
-        ttk.Entry(date_frame, textvariable=self.date_to_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.date_to_var).pack(side='left', padx=2)
 
         quick_frame = ttk.Frame(date_frame)
         quick_frame.pack(side='left', padx=5)
@@ -1170,11 +1199,11 @@ class CashflowApp:
 
         ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
         self.cat_date_from_var = tk.StringVar()
-        ttk.Entry(date_frame, textvariable=self.cat_date_from_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.cat_date_from_var).pack(side='left', padx=2)
 
         ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
         self.cat_date_to_var = tk.StringVar()
-        ttk.Entry(date_frame, textvariable=self.cat_date_to_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.cat_date_to_var).pack(side='left', padx=2)
 
         # Quick buttons
         ttk.Button(date_frame, text="This Month", command=self.set_cat_this_month, width=10).pack(side='left', padx=2)
@@ -1466,14 +1495,9 @@ class CashflowApp:
 
         # Build query based on choice
         if result['choice'] == 'all':
-            # Re-categorize ALL transactions
-            cursor.execute("""
-                SELECT id, description, category
-                FROM transactions
-            """)
+            cursor.execute("SELECT id, description, category FROM transactions")
             overwrite = True
         elif result['choice'] == 'uncategorized':
-            # Only uncategorized
             cursor.execute("""
                 SELECT id, description, category
                 FROM transactions
@@ -1481,8 +1505,7 @@ class CashflowApp:
             """)
             overwrite = False
         else:  # recent
-            # Last 30 days only
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
             cursor.execute("""
                 SELECT id, description, category
@@ -1497,9 +1520,23 @@ class CashflowApp:
             messagebox.showinfo("No Transactions", "No transactions found to categorize.")
             return
 
-        learned_count = 0
+        # Progress dialog
+        prog_win = tk.Toplevel(self.root)
+        prog_win.title("Auto-Categorizing...")
+        prog_win.geometry("360x110")
+        prog_win.resizable(False, False)
+        prog_win.transient(self.root)
+        prog_win.grab_set()
+        ttk.Label(prog_win, text="Categorizing transactions…", font=('Arial', 11)).pack(pady=(16, 6))
+        prog_var = tk.DoubleVar()
+        prog_bar = ttk.Progressbar(prog_win, variable=prog_var, maximum=len(remaining), length=300)
+        prog_bar.pack(padx=30)
+        prog_label = ttk.Label(prog_win, text=f"0 / {len(remaining)}", font=('Arial', 9))
+        prog_label.pack(pady=4)
+        prog_win.update()
 
-        for txn in remaining:
+        learned_count = 0
+        for i, txn in enumerate(remaining, 1):
             new_cat = self.learned_rules.categorize(txn['description'])
             if new_cat != 'Uncategorized' and (overwrite or txn['category'] == 'Uncategorized'):
                 cursor.execute(
@@ -1507,8 +1544,13 @@ class CashflowApp:
                     (new_cat, txn['id'])
                 )
                 learned_count += 1
+            prog_var.set(i)
+            prog_label.config(text=f"{i} / {len(remaining)}")
+            if i % 20 == 0:
+                prog_win.update()
 
         conn.commit()
+        prog_win.destroy()
 
         # Also try built-in rules
         stats = Categorizer.categorize_all(self.db, overwrite_existing=overwrite)
@@ -1999,10 +2041,10 @@ class CashflowApp:
 
         ttk.Label(date_lf, text="From:").pack(side='left', padx=2)
         self.sp_date_from_var = tk.StringVar()
-        ttk.Entry(date_lf, textvariable=self.sp_date_from_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_lf, self.sp_date_from_var).pack(side='left', padx=2)
         ttk.Label(date_lf, text="To:").pack(side='left', padx=2)
         self.sp_date_to_var = tk.StringVar()
-        ttk.Entry(date_lf, textvariable=self.sp_date_to_var, width=12).pack(side='left', padx=2)
+        self._date_picker(date_lf, self.sp_date_to_var).pack(side='left', padx=2)
 
         today = datetime.now()
         first_of_month = f"{today.year}-{today.month:02d}-01"
@@ -2968,9 +3010,10 @@ class AddTransactionDialog:
         from datetime import datetime
         self.date_var.set(datetime.now().strftime("%Y-%m-%d"))
 
-        date_entry = ttk.Entry(form, textvariable=self.date_var, width=30)
+        date_entry = ttk.Entry(form, textvariable=self.date_var, width=20)
         date_entry.grid(row=row, column=1, sticky='w', pady=5)
-        ttk.Label(form, text="(YYYY-MM-DD)", font=('Arial', 8)).grid(row=row, column=2, sticky='w', padx=5)
+        ttk.Button(form, text="📅", width=3,
+                   command=lambda: self._pick_date_into(self.date_var)).grid(row=row, column=2, sticky='w', padx=5)
         row += 1
 
         # Description (required)
@@ -3653,7 +3696,9 @@ class MergeCategoriesDialog:
 
         # Save mappings for future imports (use shared instance so correct path is used)
         from src.category_mapper import CategoryMapper
+        from src.learned_rules import LearnedRules
         mapper = self.category_mapper if self.category_mapper else CategoryMapper()
+        learned_rules = LearnedRules()
 
         for cat in source_cats:
             if cat != target:  # Don't update if already the target
@@ -3663,6 +3708,12 @@ class MergeCategoriesDialog:
                 )
                 # Remember this mapping for future imports
                 mapper.add_mapping(cat, target)
+
+                # Migrate learned rules from old category to new target
+                old_keywords = learned_rules.get_keywords_for_category(cat)
+                for keyword in list(old_keywords):
+                    learned_rules.add_rule(target, keyword)
+                    learned_rules.delete_rule(cat, keyword)
 
         conn.commit()
 

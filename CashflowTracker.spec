@@ -25,6 +25,10 @@ a = Analysis(
         'src.parsers.amex_parser',
         'src.parsers.amex_csv_parser',
         'src.parsers.bofa_parser',
+        'src.parsers.capital_one_parser',
+        'tkcalendar',
+        'babel',
+        'babel.numbers',
         'src.database.db_manager',
         'src.categorization',
         'src.category_mapper',
@@ -90,8 +94,8 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='Cashflow Tracker.app',
-    icon=None,           # Replace with 'icon.icns' if you have one
-    bundle_identifier='com.yourname.cashflowtracker',
+    icon='CashflowTracker.icns',
+    bundle_identifier='com.zchen.cashflowtracker',
     info_plist={
         'NSPrincipalClass': 'NSApplication',
         'NSHighResolutionCapable': True,
