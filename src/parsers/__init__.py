@@ -11,6 +11,7 @@ from .chase_checking_parser import ChaseCheckingParser
 from .amex_csv_parser import AmexCsvParser
 from .amex_parser import AmexParser
 from .bofa_parser import BofAParser
+from .capital_one_parser import CapitalOneParser
 
 
 # All available parsers — ORDER MATTERS.
@@ -23,6 +24,7 @@ ALL_PARSERS = [
     AmexCsvParser(),
     AmexParser(),         # Excel format (must follow CSV Amex check)
     BofAParser(),
+    CapitalOneParser(),
 ]
 
 
@@ -70,6 +72,7 @@ __all__ = [
     'AmexCsvParser',
     'AmexParser',
     'BofAParser',
+    'CapitalOneParser',
     'detect_parser',
     'get_parser_info',
     'ALL_PARSERS'
