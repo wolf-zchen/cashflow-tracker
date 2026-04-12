@@ -57,10 +57,24 @@ def draw_icon(size):
     text = "$"
     bbox = d.textbbox((0, 0), text, font=font)
     tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
     tx = (size - tw) / 2
     ty = size * 0.72
     d.text((tx, ty), text, fill=(200, 255, 210), font=font)
+
+    # "ZC" watermark in the bottom-right corner
+    zc_size = max(8, int(size * 0.16))
+    try:
+        zc_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", zc_size)
+    except Exception:
+        zc_font = font
+    zc_text = "ZC"
+    zc_bbox = d.textbbox((0, 0), zc_text, font=zc_font)
+    zc_w = zc_bbox[2] - zc_bbox[0]
+    zc_h = zc_bbox[3] - zc_bbox[1]
+    margin = size * 0.06
+    zc_x = size - zc_w - margin
+    zc_y = size - zc_h - margin
+    d.text((zc_x, zc_y), zc_text, fill=(255, 255, 255, 180), font=zc_font)
 
     return img
 

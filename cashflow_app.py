@@ -68,15 +68,15 @@ class CashflowApp:
         # Load initial data
         self.refresh_transactions()
 
-    def _date_picker(self, parent, string_var):
+    def _date_picker(self, parent, string_var, on_select=None):
         """Return a frame with a date Entry + calendar button bound to string_var."""
         frame = ttk.Frame(parent)
         ttk.Entry(frame, textvariable=string_var, width=11).pack(side='left')
         ttk.Button(frame, text="📅", width=2,
-                   command=lambda: self._pick_date_into(string_var)).pack(side='left', padx=1)
+                   command=lambda: self._pick_date_into(string_var, on_select)).pack(side='left', padx=1)
         return frame
 
-    def _pick_date_into(self, string_var):
+    def _pick_date_into(self, string_var, on_select=None):
         """Open a calendar popup and write the chosen date into string_var."""
         top = tk.Toplevel(self.root)
         top.title("Pick a date")
@@ -91,10 +91,17 @@ class CashflowApp:
         except Exception:
             pass
         cal.pack(padx=10, pady=10)
-        def select():
+
+        def apply(event=None):
             string_var.set(cal.get_date().strftime('%Y-%m-%d'))
             top.destroy()
-        ttk.Button(top, text="Select", command=select).pack(pady=(0, 10))
+            if on_select:
+                on_select()
+
+        # Auto-apply when a date is clicked in the calendar dropdown
+        cal.bind("<<DateEntrySelected>>", apply)
+        # Keep a manual button as fallback (e.g. if user types a date)
+        ttk.Button(top, text="Select", command=apply).pack(pady=(0, 10))
 
     def create_menu(self):
         """Create menu bar"""
@@ -272,10 +279,10 @@ class CashflowApp:
         ttk.Label(control_frame, text="Date Range:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
 
         self.dash_date_from_var = tk.StringVar()
-        self._date_picker(control_frame, self.dash_date_from_var).pack(side='left', padx=2)
+        self._date_picker(control_frame, self.dash_date_from_var, self.refresh_dashboard).pack(side='left', padx=2)
         ttk.Label(control_frame, text="to").pack(side='left', padx=5)
         self.dash_date_to_var = tk.StringVar()
-        self._date_picker(control_frame, self.dash_date_to_var).pack(side='left', padx=2)
+        self._date_picker(control_frame, self.dash_date_to_var, self.refresh_dashboard).pack(side='left', padx=2)
 
         ttk.Button(control_frame, text="This Month", command=self.set_dash_this_month, width=10).pack(side='left',
                                                                                                       padx=2)
@@ -909,11 +916,11 @@ class CashflowApp:
 
         ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
         self.date_from_var = tk.StringVar()
-        self._date_picker(date_frame, self.date_from_var).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.date_from_var, self.refresh_transactions).pack(side='left', padx=2)
 
         ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
         self.date_to_var = tk.StringVar()
-        self._date_picker(date_frame, self.date_to_var).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.date_to_var, self.refresh_transactions).pack(side='left', padx=2)
 
         quick_frame = ttk.Frame(date_frame)
         quick_frame.pack(side='left', padx=5)
@@ -1199,11 +1206,11 @@ class CashflowApp:
 
         ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
         self.cat_date_from_var = tk.StringVar()
-        self._date_picker(date_frame, self.cat_date_from_var).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.cat_date_from_var, self.refresh_categories).pack(side='left', padx=2)
 
         ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
         self.cat_date_to_var = tk.StringVar()
-        self._date_picker(date_frame, self.cat_date_to_var).pack(side='left', padx=2)
+        self._date_picker(date_frame, self.cat_date_to_var, self.refresh_categories).pack(side='left', padx=2)
 
         # Quick buttons
         ttk.Button(date_frame, text="This Month", command=self.set_cat_this_month, width=10).pack(side='left', padx=2)
@@ -2041,10 +2048,10 @@ class CashflowApp:
 
         ttk.Label(date_lf, text="From:").pack(side='left', padx=2)
         self.sp_date_from_var = tk.StringVar()
-        self._date_picker(date_lf, self.sp_date_from_var).pack(side='left', padx=2)
+        self._date_picker(date_lf, self.sp_date_from_var, self.refresh_spending_plan).pack(side='left', padx=2)
         ttk.Label(date_lf, text="To:").pack(side='left', padx=2)
         self.sp_date_to_var = tk.StringVar()
-        self._date_picker(date_lf, self.sp_date_to_var).pack(side='left', padx=2)
+        self._date_picker(date_lf, self.sp_date_to_var, self.refresh_spending_plan).pack(side='left', padx=2)
 
         today = datetime.now()
         first_of_month = f"{today.year}-{today.month:02d}-01"
