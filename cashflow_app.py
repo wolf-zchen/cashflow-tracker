@@ -313,8 +313,34 @@ class CashflowApp:
 
     def create_dashboard_tab(self):
         """Create dashboard overview tab"""
-        dash_frame = ttk.Frame(self.notebook)
-        self.notebook.add(dash_frame, text="📊 Dashboard")
+        outer_frame = ttk.Frame(self.notebook)
+        self.notebook.add(outer_frame, text="📊 Dashboard")
+
+        # Scrollable canvas + scrollbar
+        scroll_canvas = tk.Canvas(outer_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(outer_frame, orient='vertical', command=scroll_canvas.yview)
+        scroll_canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        scroll_canvas.pack(side='left', fill='both', expand=True)
+
+        # Inner frame that holds all dashboard content
+        dash_frame = ttk.Frame(scroll_canvas)
+        dash_window = scroll_canvas.create_window((0, 0), window=dash_frame, anchor='nw')
+
+        # Resize inner frame width to match canvas
+        def _on_canvas_resize(event):
+            scroll_canvas.itemconfig(dash_window, width=event.width)
+        scroll_canvas.bind('<Configure>', _on_canvas_resize)
+
+        # Update scroll region whenever content changes size
+        def _on_frame_resize(event):
+            scroll_canvas.configure(scrollregion=scroll_canvas.bbox('all'))
+        dash_frame.bind('<Configure>', _on_frame_resize)
+
+        # Mouse-wheel scrolling
+        def _on_mousewheel(event):
+            scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+        scroll_canvas.bind_all('<MouseWheel>', _on_mousewheel)
 
         # Title
         ttk.Label(
