@@ -541,7 +541,7 @@ class CashflowApp:
         # Get category trends over time for top 5
         if top_5_cats:
             placeholders = ','.join(['?' for _ in top_5_cats])
-            trend_params = params + top_5_cats
+            trend_params = top_5_cats + params  # category IN (?) placeholders come before date_filter in the SQL
 
             cursor.execute(f"""
                 SELECT 
