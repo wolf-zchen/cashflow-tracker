@@ -10,7 +10,7 @@ A desktop app for managing your personal finances with:
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-from tkcalendar import DateEntry
+from tkcalendar import DateEntry, Calendar
 from pathlib import Path
 import sys
 from datetime import datetime
@@ -60,13 +60,87 @@ class CashflowApp:
         # Learn from existing data on startup
         self.category_mapper.learn_from_database(self.db)
 
+        # Global shared date range vars (all tabs read from these)
+        today = datetime.now()
+        self.global_from_var = tk.StringVar(value=f"{today.year}-{today.month:02d}-01")
+        self.global_to_var   = tk.StringVar(value=today.strftime("%Y-%m-%d"))
+
+        # Alias every tab's date vars to the global ones
+        self.dash_date_from_var = self.global_from_var
+        self.dash_date_to_var   = self.global_to_var
+        self.date_from_var      = self.global_from_var
+        self.date_to_var        = self.global_to_var
+        self.cat_date_from_var  = self.global_from_var
+        self.cat_date_to_var    = self.global_to_var
+        self.sp_date_from_var   = self.global_from_var
+        self.sp_date_to_var     = self.global_to_var
+
         # Create UI
         self.create_menu()
-        self.create_status_bar()  # Create status bar BEFORE notebook
+        self.create_global_date_bar()
+        self.create_status_bar()
         self.create_notebook()
 
         # Load initial data
         self.refresh_transactions()
+
+    def create_global_date_bar(self):
+        """Shared date range bar shown above all tabs."""
+        bar = ttk.Frame(self.root, relief='flat', padding=(6, 4))
+        bar.pack(fill='x', padx=5, pady=(2, 0))
+
+        ttk.Label(bar, text="Date Range:", font=('Arial', 10, 'bold')).pack(side='left', padx=(0, 6))
+
+        self._date_picker(bar, self.global_from_var, self.refresh_all).pack(side='left', padx=2)
+        ttk.Label(bar, text="→").pack(side='left', padx=4)
+        self._date_picker(bar, self.global_to_var, self.refresh_all).pack(side='left', padx=2)
+
+        ttk.Separator(bar, orient='vertical').pack(side='left', fill='y', padx=10)
+
+        for label, cmd in [
+            ("This Month", self.set_global_this_month),
+            ("Last Month", self.set_global_last_month),
+            ("This Year",  self.set_global_this_year),
+            ("All Time",   self.set_global_all_time),
+        ]:
+            ttk.Button(bar, text=label, command=cmd, width=10).pack(side='left', padx=2)
+
+    def refresh_all(self):
+        """Refresh every data tab after a global date change."""
+        try: self.refresh_dashboard()
+        except Exception: pass
+        try: self.refresh_transactions()
+        except Exception: pass
+        try: self.refresh_categories()
+        except Exception: pass
+        try: self.refresh_spending_plan()
+        except Exception: pass
+
+    def set_global_this_month(self):
+        today = datetime.now()
+        self.global_from_var.set(f"{today.year}-{today.month:02d}-01")
+        self.global_to_var.set(today.strftime("%Y-%m-%d"))
+        self.refresh_all()
+
+    def set_global_last_month(self):
+        from datetime import timedelta
+        today = datetime.now()
+        last_prev  = datetime(today.year, today.month, 1) - timedelta(days=1)
+        first_prev = datetime(last_prev.year, last_prev.month, 1)
+        self.global_from_var.set(first_prev.strftime("%Y-%m-%d"))
+        self.global_to_var.set(last_prev.strftime("%Y-%m-%d"))
+        self.refresh_all()
+
+    def set_global_this_year(self):
+        today = datetime.now()
+        self.global_from_var.set(f"{today.year}-01-01")
+        self.global_to_var.set(today.strftime("%Y-%m-%d"))
+        self.refresh_all()
+
+    def set_global_all_time(self):
+        self.global_from_var.set("")
+        self.global_to_var.set("")
+        self.refresh_all()
 
     def _date_picker(self, parent, string_var, on_select=None):
         """Return a frame with a date Entry + calendar button bound to string_var."""
@@ -77,31 +151,36 @@ class CashflowApp:
         return frame
 
     def _pick_date_into(self, string_var, on_select=None):
-        """Open a calendar popup and write the chosen date into string_var."""
+        """Open an inline Calendar popup and write the chosen date into string_var."""
         top = tk.Toplevel(self.root)
         top.title("Pick a date")
         top.resizable(False, False)
         top.grab_set()
-        cal = DateEntry(top, date_pattern='yyyy-mm-dd', width=14,
-                        background='darkgreen', foreground='white', borderwidth=2)
+
+        # Use Calendar (inline) instead of DateEntry (dropdown) — renders correctly in Toplevel
+        cal = Calendar(top, selectmode='day', date_pattern='yyyy-mm-dd',
+                       background='darkgreen', foreground='white',
+                       headersbackground='#1a6e3c', headersforeground='white',
+                       selectbackground='#f0a500', selectforeground='black',
+                       normalbackground='#2d2d2d', normalforeground='white',
+                       weekendbackground='#2d2d2d', weekendforeground='#aaffaa',
+                       othermonthbackground='#1e1e1e', othermonthforeground='#666666')
         try:
             current = string_var.get()
             if current:
-                cal.set_date(current)
+                cal.selection_set(current)
         except Exception:
             pass
         cal.pack(padx=10, pady=10)
 
         def apply(event=None):
-            string_var.set(cal.get_date().strftime('%Y-%m-%d'))
+            string_var.set(cal.get_date())
             top.destroy()
             if on_select:
                 on_select()
 
-        # Auto-apply when a date is clicked in the calendar dropdown
-        cal.bind("<<DateEntrySelected>>", apply)
-        # Keep a manual button as fallback (e.g. if user types a date)
-        ttk.Button(top, text="Select", command=apply).pack(pady=(0, 10))
+        # Single-click on a date applies immediately
+        cal.bind("<<CalendarSelected>>", apply)
 
     def create_menu(self):
         """Create menu bar"""
@@ -272,34 +351,16 @@ class CashflowApp:
             font=('Arial', 16, 'bold')
         ).pack(pady=10)
 
-        # Date range controls
+        # Browser dashboard button (date range is now in the global bar)
         control_frame = ttk.Frame(dash_frame)
         control_frame.pack(fill='x', padx=20, pady=5)
-
-        ttk.Label(control_frame, text="Date Range:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
-
-        self.dash_date_from_var = tk.StringVar()
-        self._date_picker(control_frame, self.dash_date_from_var, self.refresh_dashboard).pack(side='left', padx=2)
-        ttk.Label(control_frame, text="to").pack(side='left', padx=5)
-        self.dash_date_to_var = tk.StringVar()
-        self._date_picker(control_frame, self.dash_date_to_var, self.refresh_dashboard).pack(side='left', padx=2)
-
-        ttk.Button(control_frame, text="This Month", command=self.set_dash_this_month, width=10).pack(side='left',
-                                                                                                      padx=2)
-        ttk.Button(control_frame, text="This Year", command=self.set_dash_this_year, width=10).pack(side='left', padx=2)
-        ttk.Button(control_frame, text="All Time", command=self.set_dash_all_time, width=10).pack(side='left', padx=2)
-        ttk.Button(control_frame, text="Refresh", command=self.refresh_dashboard, width=10).pack(side='left', padx=5)
-
-        # Separator
-        ttk.Separator(control_frame, orient='vertical').pack(side='left', fill='y', padx=10)
-
-        # Browser dashboard button
         ttk.Button(
             control_frame,
             text="🌐 Open in Browser",
             command=self.launch_browser_dashboard,
             width=18
         ).pack(side='left', padx=5)
+        ttk.Button(control_frame, text="↺ Refresh", command=self.refresh_dashboard, width=10).pack(side='left', padx=5)
 
         # Summary metrics frame
         metrics_frame = ttk.LabelFrame(dash_frame, text="Summary Metrics", padding=10)
@@ -365,27 +426,9 @@ class CashflowApp:
         # Initialize with current month
         self.set_dash_this_month()
 
-    def set_dash_this_month(self):
-        """Set dashboard to current month"""
-        from datetime import datetime
-        today = datetime.now()
-        self.dash_date_from_var.set(f"{today.year}-{today.month:02d}-01")
-        self.dash_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_dashboard()
-
-    def set_dash_this_year(self):
-        """Set dashboard to current year"""
-        from datetime import datetime
-        today = datetime.now()
-        self.dash_date_from_var.set(f"{today.year}-01-01")
-        self.dash_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_dashboard()
-
-    def set_dash_all_time(self):
-        """Clear dashboard date filters"""
-        self.dash_date_from_var.set("")
-        self.dash_date_to_var.set("")
-        self.refresh_dashboard()
+    def set_dash_this_month(self): self.set_global_this_month()
+    def set_dash_this_year(self):  self.set_global_this_year()
+    def set_dash_all_time(self):   self.set_global_all_time()
 
     def launch_browser_dashboard(self):
         """Launch Streamlit dashboard in browser"""
@@ -907,29 +950,8 @@ class CashflowApp:
         txn_frame = ttk.Frame(self.notebook)
         self.notebook.add(txn_frame, text="💰 Transactions")
 
-        # Top controls — row 1: date range
-        row1 = ttk.Frame(txn_frame)
-        row1.pack(fill='x', padx=5, pady=(5, 2))
-
-        date_frame = ttk.LabelFrame(row1, text="Date Range", padding=5)
-        date_frame.pack(side='left', padx=5)
-
-        ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
-        self.date_from_var = tk.StringVar()
-        self._date_picker(date_frame, self.date_from_var, self.refresh_transactions).pack(side='left', padx=2)
-
-        ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
-        self.date_to_var = tk.StringVar()
-        self._date_picker(date_frame, self.date_to_var, self.refresh_transactions).pack(side='left', padx=2)
-
-        quick_frame = ttk.Frame(date_frame)
-        quick_frame.pack(side='left', padx=5)
-        ttk.Button(quick_frame, text="This Month", command=self.set_this_month, width=10).pack(side='left', padx=2)
-        ttk.Button(quick_frame, text="Last Month", command=self.set_last_month, width=10).pack(side='left', padx=2)
-        ttk.Button(quick_frame, text="This Year",  command=self.set_this_year,  width=10).pack(side='left', padx=2)
-        ttk.Button(quick_frame, text="All Time",   command=self.set_all_time,   width=10).pack(side='left', padx=2)
-
-        # Row 2: account filter + search + show limit
+        # Top controls — date range is in global bar above notebook
+        # Row 1: account filter + search + show limit
         row2 = ttk.Frame(txn_frame)
         row2.pack(fill='x', padx=5, pady=(0, 5))
 
@@ -1200,23 +1222,7 @@ class CashflowApp:
             font=('Arial', 14, 'bold')
         ).pack(side='left', padx=10)
 
-        # Date range
-        date_frame = ttk.LabelFrame(control_frame, text="Date Range", padding=5)
-        date_frame.pack(side='right', padx=10)
-
-        ttk.Label(date_frame, text="From:").pack(side='left', padx=2)
-        self.cat_date_from_var = tk.StringVar()
-        self._date_picker(date_frame, self.cat_date_from_var, self.refresh_categories).pack(side='left', padx=2)
-
-        ttk.Label(date_frame, text="To:").pack(side='left', padx=2)
-        self.cat_date_to_var = tk.StringVar()
-        self._date_picker(date_frame, self.cat_date_to_var, self.refresh_categories).pack(side='left', padx=2)
-
-        # Quick buttons
-        ttk.Button(date_frame, text="This Month", command=self.set_cat_this_month, width=10).pack(side='left', padx=2)
-        ttk.Button(date_frame, text="Last Month", command=self.set_cat_last_month, width=10).pack(side='left', padx=2)
-        ttk.Button(date_frame, text="This Year", command=self.set_cat_this_year, width=10).pack(side='left', padx=2)
-        ttk.Button(date_frame, text="All Time", command=self.set_cat_all_time, width=10).pack(side='left', padx=2)
+        # Date range is in the global bar above the notebook
 
         # Categories tree
         self.cat_tree = ttk.Treeview(
@@ -1988,47 +1994,10 @@ class CashflowApp:
 
     # Transaction functions
 
-    def set_this_month(self):
-        """Set date range to current month"""
-        from datetime import datetime
-        today = datetime.now()
-        self.date_from_var.set(f"{today.year}-{today.month:02d}-01")
-        self.date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_transactions()
-
-    def set_last_month(self):
-        """Set date range to last month"""
-        from datetime import datetime, timedelta
-        import calendar
-
-        today = datetime.now()
-
-        # First day of current month
-        first_this_month = datetime(today.year, today.month, 1)
-
-        # Last day of last month
-        last_day_last_month = first_this_month - timedelta(days=1)
-
-        # First day of last month
-        first_day_last_month = datetime(last_day_last_month.year, last_day_last_month.month, 1)
-
-        self.date_from_var.set(first_day_last_month.strftime("%Y-%m-%d"))
-        self.date_to_var.set(last_day_last_month.strftime("%Y-%m-%d"))
-        self.refresh_transactions()
-
-    def set_this_year(self):
-        """Set date range to current year"""
-        from datetime import datetime
-        today = datetime.now()
-        self.date_from_var.set(f"{today.year}-01-01")
-        self.date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_transactions()
-
-    def set_all_time(self):
-        """Clear date range to show all time"""
-        self.date_from_var.set("")
-        self.date_to_var.set("")
-        self.refresh_transactions()
+    def set_this_month(self): self.set_global_this_month()
+    def set_last_month(self): self.set_global_last_month()
+    def set_this_year(self):  self.set_global_this_year()
+    def set_all_time(self):   self.set_global_all_time()
 
     # ─── Spending Plan (Conscious Spending) tab ────────────────────────────────
 
@@ -2043,29 +2012,7 @@ class CashflowApp:
         ctrl = ttk.Frame(plan_frame)
         ctrl.pack(fill='x', padx=5, pady=5)
 
-        date_lf = ttk.LabelFrame(ctrl, text="Date Range", padding=5)
-        date_lf.pack(side='left', padx=5)
-
-        ttk.Label(date_lf, text="From:").pack(side='left', padx=2)
-        self.sp_date_from_var = tk.StringVar()
-        self._date_picker(date_lf, self.sp_date_from_var, self.refresh_spending_plan).pack(side='left', padx=2)
-        ttk.Label(date_lf, text="To:").pack(side='left', padx=2)
-        self.sp_date_to_var = tk.StringVar()
-        self._date_picker(date_lf, self.sp_date_to_var, self.refresh_spending_plan).pack(side='left', padx=2)
-
-        today = datetime.now()
-        first_of_month = f"{today.year}-{today.month:02d}-01"
-        self.sp_date_from_var.set(first_of_month)
-        self.sp_date_to_var.set(today.strftime("%Y-%m-%d"))
-
-        for label, cmd in [
-            ("This Month", self.sp_set_this_month),
-            ("Last Month", self.sp_set_last_month),
-            ("This Year",  self.sp_set_this_year),
-            ("All Time",   self.sp_set_all_time),
-        ]:
-            ttk.Button(date_lf, text=label, command=cmd, width=10).pack(side='left', padx=2)
-
+        # Date range is in the global bar above the notebook
         ttk.Button(ctrl, text="🔄 Refresh", command=self.refresh_spending_plan).pack(side='left', padx=10)
 
         # Manual income override
@@ -2138,34 +2085,10 @@ class CashflowApp:
 
         self.refresh_spending_plan()
 
-    def sp_set_this_month(self):
-        from datetime import datetime
-        today = datetime.now()
-        self.sp_date_from_var.set(f"{today.year}-{today.month:02d}-01")
-        self.sp_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_spending_plan()
-
-    def sp_set_last_month(self):
-        from datetime import datetime, timedelta
-        today = datetime.now()
-        first_this = datetime(today.year, today.month, 1)
-        last_prev = first_this - timedelta(days=1)
-        first_prev = datetime(last_prev.year, last_prev.month, 1)
-        self.sp_date_from_var.set(first_prev.strftime("%Y-%m-%d"))
-        self.sp_date_to_var.set(last_prev.strftime("%Y-%m-%d"))
-        self.refresh_spending_plan()
-
-    def sp_set_this_year(self):
-        from datetime import datetime
-        today = datetime.now()
-        self.sp_date_from_var.set(f"{today.year}-01-01")
-        self.sp_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_spending_plan()
-
-    def sp_set_all_time(self):
-        self.sp_date_from_var.set("")
-        self.sp_date_to_var.set("")
-        self.refresh_spending_plan()
+    def sp_set_this_month(self): self.set_global_this_month()
+    def sp_set_last_month(self): self.set_global_last_month()
+    def sp_set_this_year(self):  self.set_global_this_year()
+    def sp_set_all_time(self):   self.set_global_all_time()
 
     def refresh_spending_plan(self):
         """Recompute bucket totals and redraw the Spending Plan tab."""
@@ -2319,46 +2242,10 @@ class CashflowApp:
         conn.commit()
         self.refresh_spending_plan()
 
-    def set_cat_this_month(self):
-        """Set category date range to current month"""
-        from datetime import datetime
-        today = datetime.now()
-        self.cat_date_from_var.set(f"{today.year}-{today.month:02d}-01")
-        self.cat_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_categories()
-
-    def set_cat_last_month(self):
-        """Set category date range to last month"""
-        from datetime import datetime, timedelta
-
-        today = datetime.now()
-
-        # First day of current month
-        first_this_month = datetime(today.year, today.month, 1)
-
-        # Last day of last month
-        last_day_last_month = first_this_month - timedelta(days=1)
-
-        # First day of last month
-        first_day_last_month = datetime(last_day_last_month.year, last_day_last_month.month, 1)
-
-        self.cat_date_from_var.set(first_day_last_month.strftime("%Y-%m-%d"))
-        self.cat_date_to_var.set(last_day_last_month.strftime("%Y-%m-%d"))
-        self.refresh_categories()
-
-    def set_cat_this_year(self):
-        """Set category date range to current year"""
-        from datetime import datetime
-        today = datetime.now()
-        self.cat_date_from_var.set(f"{today.year}-01-01")
-        self.cat_date_to_var.set(today.strftime("%Y-%m-%d"))
-        self.refresh_categories()
-
-    def set_cat_all_time(self):
-        """Clear category date range"""
-        self.cat_date_from_var.set("")
-        self.cat_date_to_var.set("")
-        self.refresh_categories()
+    def set_cat_this_month(self): self.set_global_this_month()
+    def set_cat_last_month(self): self.set_global_last_month()
+    def set_cat_this_year(self):  self.set_global_this_year()
+    def set_cat_all_time(self):   self.set_global_all_time()
 
     def refresh_transactions(self):
         """Refresh transactions list"""
