@@ -151,36 +151,8 @@ class CashflowApp:
         return frame
 
     def _pick_date_into(self, string_var, on_select=None):
-        """Open an inline Calendar popup and write the chosen date into string_var."""
-        top = tk.Toplevel(self.root)
-        top.title("Pick a date")
-        top.resizable(False, False)
-        top.grab_set()
-
-        # Use Calendar (inline) instead of DateEntry (dropdown) — renders correctly in Toplevel
-        cal = Calendar(top, selectmode='day', date_pattern='yyyy-mm-dd',
-                       background='darkgreen', foreground='white',
-                       headersbackground='#1a6e3c', headersforeground='white',
-                       selectbackground='#f0a500', selectforeground='black',
-                       normalbackground='#2d2d2d', normalforeground='white',
-                       weekendbackground='#2d2d2d', weekendforeground='#aaffaa',
-                       othermonthbackground='#1e1e1e', othermonthforeground='#666666')
-        try:
-            current = string_var.get()
-            if current:
-                cal.selection_set(current)
-        except Exception:
-            pass
-        cal.pack(padx=10, pady=10)
-
-        def apply(event=None):
-            string_var.set(cal.get_date())
-            top.destroy()
-            if on_select:
-                on_select()
-
-        # Single-click on a date applies immediately
-        cal.bind("<<CalendarSelected>>", apply)
+        """Open an inline Calendar popup — delegates to module-level helper."""
+        _pick_date_popup(self.root, string_var, on_select)
 
     def create_menu(self):
         """Create menu bar"""
