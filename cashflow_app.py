@@ -2531,13 +2531,9 @@ class CashflowApp:
         category = self.cat_tree.item(item)['text']
 
         # Switch to Transactions tab
-        self.notebook.select(2)  # Index 2 = Transactions tab (0=Import, 1=Dashboard, 2=Transactions)
+        self.notebook.select(2)  # Index 2 = Transactions tab
 
-        # Clear date range to show ALL transactions
-        self.date_from_var.set("")
-        self.date_to_var.set("")
-
-        # Set filter to category
+        # Set filter to category (keep the global date range as-is)
         self.filter_var.set(category)
 
         # Set limit to show more results
@@ -2546,8 +2542,10 @@ class CashflowApp:
         # Refresh transactions to show filtered results
         self.refresh_transactions()
 
-        # Update status
-        self.status_var.set(f"Showing ALL transactions for category: {category}")
+        date_from = self.global_from_var.get()
+        date_to   = self.global_to_var.get()
+        period    = f"{date_from} to {date_to}" if date_from or date_to else "all time"
+        self.status_var.set(f"Showing {category} transactions ({period})")
 
     def show_category_menu(self, event):
         """Show context menu for category"""
