@@ -2869,6 +2869,36 @@ class CashflowApp:
             y += bar_height + bar_spacing
 
 
+def _pick_date_popup(parent_window, string_var, on_select=None):
+    """Standalone calendar popup — usable from any dialog class."""
+    top = tk.Toplevel(parent_window)
+    top.title("Pick a date")
+    top.resizable(False, False)
+    top.grab_set()
+    cal = Calendar(top, selectmode='day', date_pattern='yyyy-mm-dd',
+                   background='darkgreen', foreground='white',
+                   headersbackground='#1a6e3c', headersforeground='white',
+                   selectbackground='#f0a500', selectforeground='black',
+                   normalbackground='#2d2d2d', normalforeground='white',
+                   weekendbackground='#2d2d2d', weekendforeground='#aaffaa',
+                   othermonthbackground='#1e1e1e', othermonthforeground='#666666')
+    try:
+        current = string_var.get()
+        if current:
+            cal.selection_set(current)
+    except Exception:
+        pass
+    cal.pack(padx=10, pady=10)
+
+    def apply(event=None):
+        string_var.set(cal.get_date())
+        top.destroy()
+        if on_select:
+            on_select()
+
+    cal.bind("<<CalendarSelected>>", apply)
+
+
 class AddTransactionDialog:
     """Dialog for adding a new transaction manually"""
 
@@ -2905,7 +2935,7 @@ class AddTransactionDialog:
         date_entry = ttk.Entry(form, textvariable=self.date_var, width=20)
         date_entry.grid(row=row, column=1, sticky='w', pady=5)
         ttk.Button(form, text="📅", width=3,
-                   command=lambda: self._pick_date_into(self.date_var)).grid(row=row, column=2, sticky='w', padx=5)
+                   command=lambda: _pick_date_popup(self.dialog, self.date_var)).grid(row=row, column=2, sticky='w', padx=5)
         row += 1
 
         # Description (required)
